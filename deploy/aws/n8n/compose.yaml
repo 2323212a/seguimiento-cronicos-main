@@ -1,0 +1,54 @@
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.45.7
+    restart: unless-stopped
+    environment:
+      N8N_HOST: ${N8N_DOMAIN:?Configura N8N_DOMAIN en .env}
+      N8N_PROTOCOL: https
+      N8N_PORT: "5678"
+      N8N_EDITOR_BASE_URL: https://${N8N_DOMAIN}/
+      WEBHOOK_URL: https://${N8N_DOMAIN}/
+      N8N_PROXY_HOPS: "1"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Configura la clave actual de n8n}
+      GENERIC_TIMEZONE: America/Mexico_City
+      TZ: America/Mexico_City
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    expose:
+      - "5678"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      N8N_DOMAIN: ${N8N_DOMAIN:?Configura N8N_DOMAIN en .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Configura ACME_EMAIL en .env}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - n8n
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  n8n_data:
+  caddy_data:
+  caddy_config:

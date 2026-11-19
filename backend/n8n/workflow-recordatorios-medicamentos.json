@@ -1,0 +1,167 @@
+{
+  "name": "Seguimiento - Recordatorios de medicamentos (cada minuto)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "b2f0c1d2-0001-4a00-9000-000000000011",
+      "name": "Cada minuto",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Hora local HH:MM (zona horaria de n8n; define GENERIC_TIMEZONE=America/Mexico_City)\nconst hora = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });\nreturn [{ json: { hora } }];"
+      },
+      "id": "b2f0c1d2-0002-4a00-9000-000000000012",
+      "name": "Hora actual",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:3000/api/automatizacion/recordatorios",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "hora",
+              "value": "={{ $json.hora }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.N8N_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2f0c1d2-0003-4a00-9000-000000000013",
+      "name": "Consultar recordatorios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.telegramChatId }}",
+        "text": "={{ $json.texto }}",
+        "additionalFields": {}
+      },
+      "id": "b2f0c1d2-0004-4a00-9000-000000000014",
+      "name": "Telegram recordatorio",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        660,
+        0
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://localhost:3000/api/automatizacion/notificaciones",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.N8N_API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { idPaciente: $('Consultar recordatorios').item.json.idPaciente, idHorario: $('Consultar recordatorios').item.json.idHorario, tipo: 'recordatorio', canal: 'telegram', mensaje: $json.result.text, estadoEnvio: 'enviado' } }}",
+        "options": {}
+      },
+      "id": "b2f0c1d2-0005-4a00-9000-000000000015",
+      "name": "Registrar notificación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Cada minuto": {
+      "main": [
+        [
+          {
+            "node": "Hora actual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hora actual": {
+      "main": [
+        [
+          {
+            "node": "Consultar recordatorios",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar recordatorios": {
+      "main": [
+        [
+          {
+            "node": "Telegram recordatorio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram recordatorio": {
+      "main": [
+        [
+          {
+            "node": "Registrar notificación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

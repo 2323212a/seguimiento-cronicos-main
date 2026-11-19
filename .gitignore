@@ -1,0 +1,23 @@
+# Secretos y configuración local
+.env
+.env.*
+!.env.example
+postgres.env
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Bases locales y respaldos
+postgres-data/
+*respaldo*.sql
+*backup*.sql
+*.tar.gz
+
+# Dependencias y compilaciones generadas
+**/node_modules/
+frontend/dist/
+backend/dist/
+
+# Configuración local de n8n
+deploy/aws/n8n/.env

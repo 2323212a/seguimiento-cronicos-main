@@ -1,0 +1,105 @@
+services:
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_HOST: ${DB_HOST:?Configura DB_HOST en deploy/aws/.env}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-seguimiento_cronicos}
+      DB_USER: ${DB_USER:?Configura DB_USER en deploy/aws/.env}
+      DB_PASSWORD: ${DB_PASSWORD:?Configura DB_PASSWORD en deploy/aws/.env}
+      DB_SSL: ${DB_SSL:-true}
+      DB_SSL_CA: ${DB_SSL_CA:-/run/certs/global-bundle.pem}
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en deploy/aws/.env}
+      FRONTEND_ORIGINS: https://${APP_DOMAIN:?Configura APP_DOMAIN en deploy/aws/.env}
+      N8N_API_KEY: ${N8N_API_KEY:?Configura N8N_API_KEY en deploy/aws/.env}
+      N8N_WEBHOOK_URL: http://n8n:5678/webhook/medicion-registrada
+      ALERTAS_BACKEND_ACTIVAS: "false"
+      ALERTAS_SEGURIDAD_ACTIVAS: "false"
+      ALERTAS_OBJETIVOS_ACTIVAS: "false"
+      OUTBOX_WORKER_ACTIVO: "false"
+    volumes:
+      - ./certs/global-bundle.pem:/run/certs/global-bundle.pem:ro
+    expose:
+      - "3000"
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/salud').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:2.45.7
+    restart: unless-stopped
+    environment:
+      N8N_HOST: ${N8N_DOMAIN:?Configura N8N_DOMAIN en deploy/aws/.env}
+      N8N_PROTOCOL: https
+      N8N_PORT: "5678"
+      N8N_EDITOR_BASE_URL: https://${N8N_DOMAIN}/
+      WEBHOOK_URL: https://${N8N_DOMAIN}/
+      N8N_PROXY_HOPS: "1"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?Usa la clave actual de n8n para conservar credenciales}
+      N8N_API_KEY: ${N8N_API_KEY:?Configura N8N_API_KEY en deploy/aws/.env}
+      GENERIC_TIMEZONE: America/Mexico_City
+      TZ: America/Mexico_City
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    expose:
+      - "5678"
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  web:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Configura APP_DOMAIN en deploy/aws/.env}
+      N8N_DOMAIN: ${N8N_DOMAIN:?Configura N8N_DOMAIN en deploy/aws/.env}
+      ACME_EMAIL: ${ACME_EMAIL:?Configura ACME_EMAIL en deploy/aws/.env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      n8n:
+        condition: service_started
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  n8n_data:
+  caddy_data:
+  caddy_config:

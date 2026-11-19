@@ -1,0 +1,383 @@
+{
+  "id": "EPyMC6Zrlc2XhFDH",
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "947a9abe-9e91-4114-a509-03c892c81c31",
+      "name": "Recibir consulta",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "f3bff3c8-0df2-4edc-b1d8-c7bf591429a9",
+      "credentials": {
+        "telegramApi": {
+          "id": "fePBrXyM2bxppDnl",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const message = $json.message ?? {};\nconst chat = message.chat ?? {};\nconst chatId = chat.id;\nconst raw = typeof message.text === 'string' ? message.text : '';\nif (chatId == null || chat.type !== 'private' || !raw.trim()) return { json: { skip: true } };\nconst normalize = value => value.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim().toLowerCase();\nconst textIn = normalize(raw);\nconst command = textIn.split(/\\s+/)[0].replace(/@[^ ]+$/, '');\nlet accion = 'estatica';\nlet seccion = null;\nlet text;\nif (command === '/vincular') { accion = 'vincular'; }\nelse if (/^\\/(perfil|misdatos)$/.test(command)) { accion = 'consulta'; seccion = 'perfil'; }\nelse if (/^\\/(mediciones|medicion|historial)$/.test(command) || /medicion|glucosa|presion/.test(textIn)) { accion = 'consulta'; seccion = 'mediciones'; }\nelse if (/^\\/(medicamentos|medicamento)$/.test(command) || /medicamento|medicina|dosis|tratamiento|horario/.test(textIn)) { accion = 'consulta'; seccion = 'medicamentos'; }\nelse if (/^\\/(alertas|misalertas)$/.test(command)) { accion = 'consulta'; seccion = 'alertas'; }\nelse if (/^\\/(diagnosticos|diagnostico)$/.test(command)) { accion = 'consulta'; seccion = 'diagnosticos'; }\nelse if (/^\\/(objetivos|metas)$/.test(command)) { accion = 'consulta'; seccion = 'objetivos'; }\nelse if (/^\\/(start|ayuda|help|menu)$/.test(command) || /^(hola|buenas|buenos dias|buenas tardes)$/.test(textIn)) {\n text = 'Hola. Puedo consultar la información de tu cuenta vinculada en este chat privado:\\n/perfil — datos de tu perfil\\n/mediciones o /historial — últimas mediciones guardadas\\n/medicamentos — medicamentos y horarios registrados\\n/alertas — alertas guardadas\\n/diagnosticos — diagnósticos confirmados\\n/objetivos — objetivos registrados por tu médico\\n/vincular — vincular Telegram\\n/acceso — ayuda para entrar o registrarte\\n\\nEl bot muestra los datos registrados y no interpreta mediciones ni modifica tratamientos.';\n} else if (/^\\/(acceso)$/.test(command) || /registr|iniciar sesion|no puedo entrar|contrasena/.test(textIn)) {\n text = 'Usa el registro de la aplicación para solicitar una cuenta. El administrador debe activarla antes de iniciar sesión.';\n} else if (/dolor|sintoma|me siento|urgente|emergencia/.test(textIn)) {\n text = 'No puedo valorar síntomas por Telegram. Contacta a tu profesional de salud; si hay peligro inmediato, comunícate con los servicios de emergencia de tu localidad.';\n} else {\n text = 'Escribe /ayuda para consultar tu perfil, mediciones, medicamentos, alertas, diagnósticos u objetivos guardados.';\n}\nreturn { json: { chatId, accion, seccion, text } };"
+      },
+      "id": "1e5918e9-8120-47c3-b2a4-122dcc4b8b61",
+      "name": "Preparar respuesta segura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f855c49e-d68f-43e2-90d2-352e2b705c1f",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1258832c-4ed6-474c-9af5-2f30a0d16773",
+      "name": "Solo chat privado con texto",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        450,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4832a1e8-feb9-4dbd-8b9b-f9314f746fb2",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "vincular",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5f08d6e1-771e-4136-a550-d345957f4a00",
+      "name": "¿Vincular Telegram?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        670,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://10.0.1.31:3000/api/automatizacion/telegram/vinculos",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chatId: $json.chatId } }}",
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "fc280733-7845-4e2b-a222-c54a54b2f017",
+      "name": "Solicitar código de vinculación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        900,
+        -180
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "c6d2b8d6-14d2-4c0f-8af5-60a0f91af76e",
+          "name": "Backend Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const chatId = $('Preparar respuesta segura').item.json.chatId;\nconst codigo = String($json.codigo ?? '');\nconst text = codigo ? `Código temporal: ${codigo}\\n\\nInicia sesión en la aplicación, abre “Mi información” y pega el código para vincular tu cuenta. Vence en 10 minutos. No compartas este código.` : 'No se pudo crear el código. Inténtalo más tarde.';\nreturn { json: { chatId, text } };"
+      },
+      "id": "2bc78e2d-94c8-4891-8bd7-e0cc1ba2507e",
+      "name": "Preparar código para el paciente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1130,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8b497cb5-1d0d-4d3c-a4db-405895edfe96",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "consulta",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "71c47b1d-8e77-4fc2-8a15-4e47c019c25d",
+      "name": "¿Consultar datos vinculados?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        900,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://10.0.1.31:3000/api/automatizacion/telegram/datos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "chatId",
+              "value": "={{ $('Preparar respuesta segura').item.json.chatId }}"
+            },
+            {
+              "name": "seccion",
+              "value": "={{ $('Preparar respuesta segura').item.json.seccion }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "4ce7c3af-a066-4e3b-816f-89116d1c7859",
+      "name": "Consultar datos vinculados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1130,
+        0
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "c6d2b8d6-14d2-4c0f-8af5-60a0f91af76e",
+          "name": "Backend Telegram API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const origen = $('Preparar respuesta segura').item.json;\nconst chatId = origen.chatId;\nconst seccion = origen.seccion;\nconst fecha = valor => valor ? String(valor).slice(0, 10) : 'sin fecha';\nconst texto = valor => String(valor ?? '').replace(/[\\r\\n]+/g, ' ').trim();\nconst lineas = [];\nlet titulo = '';\nif ($json.error) {\n  return { json: { chatId, text: 'No pude consultar tus datos ahora. Inténtalo de nuevo más tarde.' } };\n}\nif (!$json.vinculada) {\n  return { json: { chatId, text: 'Este chat aún no está vinculado a una cuenta activa. Inicia sesión en la aplicación, envía /vincular y pega el código en “Mi información”.' } };\n}\nif (seccion === 'perfil') {\n  titulo = 'Tu perfil';\n  const p = $json.perfil ?? {};\n  lineas.push(`Nombre: ${texto(p.nombre) || 'no registrado'}`);\n  lineas.push(`Fecha de nacimiento: ${fecha(p.fechaNacimiento)}`);\n  lineas.push(`Teléfono: ${texto(p.telefono) || 'no registrado'}`);\n  lineas.push(`Telegram: ${p.telegramVerificado ? 'vinculado' : 'no vinculado'}`);\n} else if (seccion === 'mediciones') {\n  titulo = 'Últimas mediciones guardadas';\n  const items = $json.mediciones ?? [];\n  for (const m of items) {\n    let valor = m.tipo === 'glucosa' ? `${m.glucosaMgDl} mg/dL`\n      : m.tipo === 'presion_arterial' ? `${m.sistolicaMmhg}/${m.diastolicaMmhg} mmHg`\n      : m.tipo === 'hba1c' ? `${m.hba1cPercent}%` : 'valor no disponible';\n    lineas.push(`${fecha(m.fechaHora)} · ${valor}${m.contexto ? ` · ${texto(m.contexto)}` : ''}`);\n  }\n  if (!items.length) lineas.push('No hay mediciones registradas.');\n} else if (seccion === 'medicamentos') {\n  titulo = 'Medicamentos registrados';\n  const items = $json.medicamentos ?? [];\n  for (const m of items) {\n    const horas = (m.horarios ?? []).join(', ');\n    lineas.push(`${texto(m.nombre)} · ${texto(m.dosis)} · ${texto(m.frecuencia)}${horas ? ` · horarios: ${horas}` : ''} · desde ${fecha(m.fechaInicio)}${m.fechaFin ? ` hasta ${fecha(m.fechaFin)}` : ''}`);\n  }\n  if (!items.length) lineas.push('No hay medicamentos registrados.');\n} else if (seccion === 'alertas') {\n  titulo = 'Alertas registradas';\n  const items = $json.alertas ?? [];\n  for (const a of items) {\n    const medicion = a.medicion?.tipo === 'glucosa' ? `${a.medicion.valor} mg/dL`\n      : a.medicion?.tipo === 'presion_arterial' ? `${a.medicion.sistolica}/${a.medicion.diastolica} mmHg`\n        : a.medicion?.tipo === 'hba1c' ? `${a.medicion.valor}%` : null;\n    lineas.push(`${fecha(a.fechaGeneracion)} · ${texto(a.tipo)} · ${texto(a.estado)}${medicion ? ` · medición: ${medicion}` : ''}${a.motivo ? `\\n${texto(a.motivo)}` : ''}${a.criterioActivado ? `\\nCriterio: ${texto(a.criterioActivado)}` : ''}${a.fuente?.titulo ? `\\nFuente: ${texto(a.fuente.institucion)} — ${texto(a.fuente.titulo)}` : ''}${a.indicacionPaciente ? `\\nIndicación registrada: ${texto(a.indicacionPaciente)}` : ''}`);\n  }\n  if (!items.length) lineas.push('No hay alertas registradas.');\n} else if (seccion === 'diagnosticos') {\n  titulo = 'Diagnósticos confirmados';\n  const nombres = { diabetes_tipo_1: 'Diabetes tipo 1', diabetes_tipo_2: 'Diabetes tipo 2', hipertension: 'Hipertensión arterial' };\n  const items = $json.diagnosticos ?? [];\n  for (const d of items) lineas.push(`${nombres[d.codigo] ?? texto(d.codigo)} · ${texto(d.estado)} · confirmado ${fecha(d.confirmadoEn)}`);\n  if (!items.length) lineas.push('No hay diagnósticos confirmados registrados.');\n} else if (seccion === 'objetivos') {\n  titulo = 'Objetivos registrados por tu médico';\n  const items = $json.objetivos ?? [];\n  for (const o of items) {\n    let rango = o.tipoMedicion === 'glucosa' ? `${o.glucosaMin ?? '—'} a ${o.glucosaMax ?? '—'} mg/dL`\n      : `${o.sistolicaMin ?? '—'}–${o.sistolicaMax ?? '—'} / ${o.diastolicaMin ?? '—'}–${o.diastolicaMax ?? '—'} mmHg`;\n    lineas.push(`${texto(o.tipoMedicion)}${o.contexto ? ` · ${texto(o.contexto)}` : ''} · ${rango} · ${texto(o.estado)}${o.indicacionPaciente ? `\\nIndicación registrada: ${texto(o.indicacionPaciente)}` : ''}`);\n  }\n  if (!items.length) lineas.push('No hay objetivos registrados.');\n}\nlet respuesta = `${titulo}\\n\\n${lineas.join('\\n')}`;\nif (respuesta.length > 3800) respuesta = `${respuesta.slice(0, 3780)}\\n… Consulta el historial completo en la aplicación.`;\nreturn { json: { chatId, text: respuesta } };"
+      },
+      "id": "ef4b58fd-2a84-4012-a4e2-9f81057b9480",
+      "name": "Preparar respuesta de datos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "id": "5899d3c1-86cb-4e80-a7c1-bbb0bf590699",
+      "name": "Responder por Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1590,
+        180
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "fePBrXyM2bxppDnl",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Recibir consulta": {
+      "main": [
+        [
+          {
+            "node": "Preparar respuesta segura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar respuesta segura": {
+      "main": [
+        [
+          {
+            "node": "Solo chat privado con texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Solo chat privado con texto": {
+      "main": [
+        [
+          {
+            "node": "¿Vincular Telegram?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "¿Vincular Telegram?": {
+      "main": [
+        [
+          {
+            "node": "Solicitar código de vinculación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Consultar datos vinculados?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Solicitar código de vinculación": {
+      "main": [
+        [
+          {
+            "node": "Preparar código para el paciente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar código para el paciente": {
+      "main": [
+        [
+          {
+            "node": "Responder por Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Consultar datos vinculados?": {
+      "main": [
+        [
+          {
+            "node": "Consultar datos vinculados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder por Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar datos vinculados": {
+      "main": [
+        [
+          {
+            "node": "Preparar respuesta de datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar respuesta de datos": {
+      "main": [
+        [
+          {
+            "node": "Responder por Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataSuccessExecution": "none",
+    "saveDataErrorExecution": "none",
+    "saveManualExecutions": false,
+    "saveExecutionProgress": false
+  },
+  "staticData": null,
+  "tags": []
+}
+

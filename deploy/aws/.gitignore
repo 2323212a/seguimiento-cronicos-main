@@ -1,0 +1,5 @@
+.env
+*.dump
+*.sql
+*.tar.gz
+certs/

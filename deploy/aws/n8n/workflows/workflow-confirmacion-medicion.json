@@ -1,0 +1,73 @@
+{
+  "name": "Seguimiento - Outbox y confirmación segura",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "medicion-registrada", "responseMode": "responseNode", "options": {} },
+      "id": "a1f0c1d2-0001-4a00-9000-000000000001",
+      "name": "Webhook Outbox", "type": "n8n-nodes-base.webhook", "typeVersion": 2,
+      "position": [0, 0], "webhookId": "medicion-registrada"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://10.0.1.31:3000/api/automatizacion/eventos/' + $json.body.eventId + '/reclamar' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-api-key", "value": "={{ $env.N8N_API_KEY }}" }] },
+        "options": {}
+      },
+      "id": "a1f0c1d2-0002-4a00-9000-000000000002",
+      "name": "Reclamar eventId", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [220, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [{ "value1": "={{ $json.procesar }}", "value2": true }] } },
+      "id": "a1f0c1d2-0003-4a00-9000-000000000003",
+      "name": "¿Procesar evento?", "type": "n8n-nodes-base.if", "typeVersion": 1,
+      "position": [440, 0]
+    },
+    {
+      "parameters": { "conditions": { "boolean": [{ "value1": "={{ !!$('Webhook Outbox').item.json.body.telegramChatId }}", "value2": true }] } },
+      "id": "a1f0c1d2-0004-4a00-9000-000000000004",
+      "name": "¿Tiene destino Telegram?", "type": "n8n-nodes-base.if", "typeVersion": 1,
+      "position": [660, -100]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Webhook Outbox').item.json.body.telegramChatId }}",
+        "text": "={{ $('Webhook Outbox').item.json.body.texto }}",
+        "additionalFields": {}
+      },
+      "id": "a1f0c1d2-0005-4a00-9000-000000000005",
+      "name": "Telegram genérico", "type": "n8n-nodes-base.telegram", "typeVersion": 1.2,
+      "position": [880, -160], "credentials": { "telegramApi": { "id": "", "name": "Telegram account" } }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'http://10.0.1.31:3000/api/automatizacion/eventos/' + $('Webhook Outbox').item.json.body.eventId + '/completar' }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "x-api-key", "value": "={{ $env.N8N_API_KEY }}" }] },
+        "options": {}
+      },
+      "id": "a1f0c1d2-0006-4a00-9000-000000000006",
+      "name": "Confirmar evento", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4.2,
+      "position": [1100, -40]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={\"accepted\":true}", "options": {} },
+      "id": "a1f0c1d2-0007-4a00-9000-000000000007",
+      "name": "Responder webhook", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.1,
+      "position": [1320, 0]
+    }
+  ],
+  "connections": {
+    "Webhook Outbox": { "main": [[{ "node": "Reclamar eventId", "type": "main", "index": 0 }]] },
+    "Reclamar eventId": { "main": [[{ "node": "¿Procesar evento?", "type": "main", "index": 0 }]] },
+    "¿Procesar evento?": { "main": [[{ "node": "¿Tiene destino Telegram?", "type": "main", "index": 0 }], [{ "node": "Responder webhook", "type": "main", "index": 0 }]] },
+    "¿Tiene destino Telegram?": { "main": [[{ "node": "Telegram genérico", "type": "main", "index": 0 }], [{ "node": "Confirmar evento", "type": "main", "index": 0 }]] },
+    "Telegram genérico": { "main": [[{ "node": "Confirmar evento", "type": "main", "index": 0 }]] },
+    "Confirmar evento": { "main": [[{ "node": "Responder webhook", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
+
